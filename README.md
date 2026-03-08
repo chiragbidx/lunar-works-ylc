@@ -1,54 +1,60 @@
-# Next.js App Router Boilerplate — Operational Guide
+# Snaplytics — Operational Guide
 
-This repository is a minimal Next.js 16 (App Router) starter with React 19, TypeScript, Tailwind-ready PostCSS, and **Drizzle ORM + PostgreSQL ready**. Auth deps are present (NextAuth), but routes/config are not wired. Use this document as the single operational reference. If anything is unclear: **STOP AND ASK** before proceeding.
+This repository is a production-ready, minimal Next.js 16 (App Router) app with React 19, TypeScript 5, Tailwind-ready styling, Drizzle ORM + PostgreSQL (schema/migration present), and **website screenshot API integration via Browserless**. Auth deps (`next-auth`) are present but not wired. This document is the core operational reference.
 
 ---
 
 ## 1. Current Scope
-- Purpose: baseline UI scaffold with Postgres-backed Drizzle schema and auth-ready dependencies.
-- Data: Drizzle configured for PostgreSQL; base `users` model (email, first/last name, password hash, emailVerified, timestamps) with migration in `drizzle/`.
-- Auth: NextAuth.js installed; no routes/config wired yet.
-- AI integration default: OpenAI with model `gpt-4o-mini` (override via `OPENAI_MODEL`).
-- Env vars: `env.example` lists `OPENAI_API_KEY`, `DATABASE_URL`, and `NEXTAUTH_SECRET` (reuse `AUTH_SECRET`).
-- Current landing: Panda-themed orange palette, responsive layout with wrapping buttons, and constrained center width (up to ~1600px) while remaining mobile-friendly.
-- Client interactivity is isolated to small islands (e.g., `AgentActionPanel`) so the page can stay server-rendered overall.
+- **Purpose:** Instantly capture website screenshots from any URL, return image in-browser. Full Snaplytics branding and hero.
+- **Data:** Drizzle configured for PostgreSQL (users schema only; not used in screenshot flow). 
+- **Auth:** NextAuth.js dependencies installed, but not configured.
+- **Screenshot integration:** POST `/api/capture` routes URLs via Browserless for reliable screenshot generation (see [Browserless docs](https://www.browserless.io/docs/screenshot)).
+- **Env vars:** `env.example` lists `BROWSERLESS_API_KEY`, `OPENAI_API_KEY`, `DATABASE_URL`, and `NEXTAUTH_SECRET`.
+- **Landing:** Responsive Snaplytics layout with hero, screenshot form, highlights, how-to section, and full branding.
+- **Client islands:** Screenshot input handled by `WebsiteScreenshotForm`, isolated; the rest of the landing is server-rendered for performance.
 
 ## First Request Rule
-- Ship the first feature directly in `app/page.tsx` before adding new routes or structure.
-- Build the requested feature end to end with production-ready integration (AI/dataflow/API/UX). Keep the client island (e.g., `ContractAIDemo` with `"use client"`) handling interactivity while the rest of the landing stays server-rendered and performant.
-- Once the production-grade feature works, rebrand the entire page — header, hero, body, footer — to match the feature; polish visuals after functionality is solid.
+- The Snaplytics screenshot feature ships directly in `app/page.tsx` and `/api/capture`. 
+- The screenshot flow, error/UX routines, and full Snaplytics rebrand (header, hero, footer, owner info) are production-ready.
+- All forms, API flows, and branding are polished after working logic.
 
 ## 2. Technology Stack
-- Next.js 16 App Router (server-first, file-based routing).
+- Next.js 16 App Router (server-first).
 - React 19, TypeScript 5 (strict).
-- Styling: Tailwind via `@tailwindcss/postcss` pipeline; global CSS in `app/globals.css`.
-- Data: Drizzle ORM + PostgreSQL (schema + migration present).
-- Auth deps present: `next-auth` (not yet configured).
-- Tooling: ESLint 9 (`eslint-config-next`), PostCSS. Geist fonts removed from layout for offline-safe builds.
+- Tailwind via PostCSS pipeline; global CSS (`app/globals.css`).
+- Server actions via `app/api/capture/route.ts` for screenshots.
+- Drizzle ORM + PostgreSQL (users schema; not used in screenshots).
+- ESLint 9, PostCSS, no global fonts except via next/font.
+- No test harness or router groups yet.
 
 ## 3. Project Structure
 ```
 app/
-  layout.tsx        # Root layout, loads fonts, applies globals
-  page.tsx          # Public landing page (server component)
-  globals.css       # Global styles; Tailwind entrypoint
+  layout.tsx        # Root layout, applies globals, ErrorReporter
+  page.tsx          # Snaplytics main landing + screenshot UI
+  api/
+    capture/
+      route.ts      # Screenshot API endpoint (POST)
+  globals.css       # Tailwind entry and theme CSS
 public/             # Static assets (logos/icons)
-scripts/            # Ops helpers (minimal placeholders)
-  dev-supervisor.js # Runs Next dev server
-  db-init.js        # No-op (no DB)
-  git-poll.js       # Polls git origin for branch updates
-  error-reporter.ts # Client-safe error forwarder (imported via components/ErrorReporter)
-Dockerfile          # Container definition (npm ci, runs dev-supervisor)
-drizzle.config.ts   # Drizzle CLI config (Postgres)
-lib/db/schema.ts    # Drizzle schema (users)
-lib/db/client.ts    # Drizzle + pg pool client
-drizzle/            # SQL migrations + meta journal
-eslint.config.mjs   # ESLint configuration
-next.config.ts      # Next.js config (minimal)
-postcss.config.mjs  # PostCSS plugins (Tailwind-ready)
+components/
+  WebsiteScreenshotForm.tsx # Client screenshot UX
+  AgentActionPanel.tsx      # Demo client-only note area
+  ErrorReporter.tsx         # UI error reporter
+scripts/            # Dev ops helpers
+  dev-supervisor.js # Runs Next.js dev + polling
+  db-init.js        # No-op (DB)
+  git-poll.js       # Polls git for branch updates
+  error-reporter.ts # Used by ErrorReporter
+lib/db/
+  schema.ts         # Drizzle schema (users only)
+  client.ts         # Drizzle/pg pool client
+drizzle/            # SQL migrations + journal
+eslint.config.mjs   # Lint config
+next.config.ts      # Next.js config
+postcss.config.mjs  # PostCSS plugins
 tsconfig.json       # TypeScript config
 package.json        # Scripts and dependencies
-package-lock.json   # Locked dependency tree
 FILES.md            # Structural index
 RULES.md            # Change boundaries (boilerplate)
 ```
@@ -56,66 +62,44 @@ RULES.md            # Change boundaries (boilerplate)
 ## 4. Install & Run
 ```bash
 npm install
-npm run dev   # starts Next.js on localhost:3000
-npm run lint  # ESLint
-npm run build # production build
+npm run dev   # Starts Next.js on localhost:3000
 ```
-
-Drizzle / DB (Postgres):
+For Drizzle / DB (Postgres, users demo):
 ```bash
 DATABASE_URL="postgresql://user:pass@host:5432/db" npm run db:migrate
-# To regenerate SQL after schema changes
-DATABASE_URL="postgresql://user:pass@host:5432/db" npm run db:generate
 ```
-- Important: Drizzle only applies migrations listed in `drizzle/meta/_journal.json`. Always commit both the generated SQL files and the updated journal. The init script/CI will fail if a `.sql` migration is not present in the journal.
 
 ## 5. Routing & Components
-- Public landing page: `app/page.tsx`.
-- No route groups exist yet. When adding authenticated/dashboard areas, create `app/(dashboard)/...` and reuse shared layouts there (see RULES.md).
-- Keep components server-side by default; add `"use client"` only when required by client hooks/state.
+- Main UI and screenshot input: `app/page.tsx`, `components/WebsiteScreenshotForm.tsx`
+- Screenshot API: `app/api/capture/route.ts` (POST `{ url }` → `{ imageUrl }`)
+- All other structure as in [FILES.md](./FILES.md)
 
 ## 6. Styling
-- Tailwind is enabled via `app/globals.css` (`@import "tailwindcss";`). There is no standalone `tailwind.config` yet; add one only if needed.
-- Limit global styles; prefer component- or route-scoped styles.
-- Fonts are loaded through `next/font` (Geist). Keep overrides minimal.
-- Landing page uses Panda orange (#FB7232) accents, card-based feature highlights, a gradient hero, and a client-island note panel; buttons and menus wrap on small viewports.
+- Tailwind via `app/globals.css`. Extend via Tailwind or local CSS only if needed.
+- Use Snaplytics orange (#FB7232) accent, card-based features, gradient backgrounds.
 
 ## 7. Environment & Secrets
-- Required for AI: set `OPENAI_API_KEY` in `.env.local` (copy from `env.example`).
-- Database: set `DATABASE_URL` (Postgres). Example provided in `env.example`.
-- Auth: reuse `AUTH_SECRET` as `NEXTAUTH_SECRET` for NextAuth.
-- Optional: set `OPENAI_MODEL` to override the default `gpt-4o-mini` used by server helpers.
-- Add additional env vars by updating `env.example` first; never commit secrets.
+- `BROWSERLESS_API_KEY` **must be set** (see [Browserless.io](https://www.browserless.io/)) in Railway/Vercel for screenshotting.
+- `OPENAI_API_KEY`: for legacy AI features (not used in screenshot UX).
+- `DATABASE_URL`: only used if expanding DB features.
+- Add additional env vars in `env.example` and document contract in FILES.md.
 
 ## 8. Data & Backend
-- Drizzle + Postgres configured with a base `users` table (email, first/last name, password hash, emailVerified, timestamps).
-- Migrations live under `drizzle/` and are run via `npm run db:migrate`.
-- When adding routes or server actions, place data helpers under `lib/` and document contracts in FILES.md and RULES.md.
+- Drizzle Postgres present (users only, not used in screenshots).
+- Screenshot API goes directly via Browserless API (stateless, no local DB).
 
-## 9. Testing (Not Present)
-- No tests are included. If adding tests, prefer:
-  - Unit: `__tests__/` or co-located `*.test.tsx`
-  - E2E: Playwright under `e2e/`
-  - Provide lightweight stubs/utilities
+## 9. Testing
+- No tests present. Add E2E/unit in `e2e/` or `__tests__/` as needed.
 
 ## 10. Change Guidelines
-- Default to minimal diffs; avoid rewrites.
-- Do not move files across route groups without coordination.
-- Avoid new Markdown explainer files unless explicitly requested; update existing docs instead.
-- Do not introduce time- or randomness-dependent values directly in React render (`Date.now()`, `Math.random()`). Precompute in server components, constants, or `useEffect` if client-only.
-- If adding auth, billing, or DB: update RULES.md and FILES.md first, then implement.
-- Only `scripts/error-reporter.ts` may be imported into runtime UI (via `components/ErrorReporter.tsx`); keep other scripts server-only.
+- Minimal diffs, no route group movement without consensus.
+- Update FILES.md and README.md if new feature or API added.
+- Env changes require env.example and doc updates before production deploy.
 
-## 11. Hard Stops
-- Unclear requirements or missing context.
-- Requests to alter session/cookie behavior (not present) without approval.
-- Hand-editing generated migration SQL without intent (Drizzle migrations are committed; edit cautiously).
-- Storing or logging secrets in code or assets.
-
-## 12. Deployment
-- Default target: Next.js on Vercel or any Node 18+ host.
-- Docker support is not configured. Add a `Dockerfile` only with explicit need and document it.
+## 11. Deployment
+- Next.js on Vercel or any Node 18+ host.
+- Set `BROWSERLESS_API_KEY` in the target environment for screenshots to work.
 
 ---
 
-Operate cautiously, keep changes small, and align new features with the documented structure. When uncertain: **STOP AND ASK**.
+For code questions or new feature directions, contact Chirag Dodiya (chirag@bidx.ai).
